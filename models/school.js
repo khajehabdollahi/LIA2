@@ -24,6 +24,10 @@ const schoolSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  confirmation: {
+    type: String,
+    default: "Undefined",
+  },
   image: {
     type: String,
   },
@@ -58,6 +62,7 @@ const schoolSchema = new mongoose.Schema({
   mobileNumber: {
     type: Number,
   },
+
   location: {
     type: String,
   },

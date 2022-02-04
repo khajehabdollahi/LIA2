@@ -5,11 +5,17 @@
  <h3> <%= user.name %>'Page! </h3>
  Email: <%= user.username %> <br>
  Name: <%= user.name %> <br>
- 
+ Phone Number: <%= user.schoolPhoneNumber %> <br>
+ Confirmation: <%= user.confirmation %> <br>
+ <% if( currentUser.username != user.username ) { %>
+<% if (school){ %> 
+Users school: <a href="http:/news/<%= school.id %>"><%= school.schoolsname%> </a>
+<% } %> 
+ <% } %> 
  <br>
-  
-<% if(currentUser && currentUser.username == user.username ) { %> 
-
+ 
+<br>
+<% if(currentUser && currentUser.username == user.username ) { %>
 
  <% if(!school){ %> 
 <a href="/newones"><h2> Register a School</h2> </a> <br/>
@@ -20,11 +26,28 @@
 
 <a href="/users/edit/<%=currentUser.id %>">Edit my Personal Information</a></a><br>
 
+  <h5>Schools which requested you to confirm them  </h5>
+
+  <% for(let conf of confirm.reverse()){ %> 
+    <% if(conf.confirmation =="Waiting for confirmation"){ %> 
+      
+    <li><a href="/users/<%=conf.confirmRequesterUser.id %> "><%=conf.confirmRequestersName %></a>   </li>
+    <li>Message from confirm requester user: <br> <%=conf.text %>  </li>
+
+
+
+<a href="/finalconfirm/<%=conf.confirmRequesterUser.id%>/<%=currentUser.id %>/<%=conf.id %>  ">Do you confirm this User?</a>
+
+</li>
+</ul>
+<% } %> 
+<% } %> 
+
 <form action="/deleteuser/<%= currentUser.id %>   " method="get">
   <br>
 <button  class="btn btn-danger" type="submit">ِDelete your Account</button>
 
-  </form>
+ 
 <br><br>
 
 <% if(!currentUser.activated) { %> 
@@ -42,6 +65,12 @@
  <h2> School: <a href="/news/<%= school.id %>/<%=currentUser.id %> "><%= school.schoolsname %></a></h2>
 <% } %> 
  <% } %> 
+  <% for(let conf of confirm){ %> 
+<% if (currentUser.id===conf.userIdWhichReceivedConfirmRequest){ %> 
+ confirm this user
+  <% } %> 
+  <% } %> 
+
  <h4>Users Texts</h4>
 <% for (let t of text){ %> 
   <ul style="list-style: none;">

@@ -13,6 +13,7 @@ const mailer = require("./views/mailer");
 const mailerForget = require("./views/mailerForget");
 
 const Friendship = require("./models/friendship");
+const Confirm = require("./models/confirm");
 const ejsMate = require("ejs-mate");
 const methodOverride = require("method-override");
 const passport = require("passport");
@@ -23,7 +24,10 @@ const User = require("./models/User");
 const Text = require("./models/Text");
 const Newschool = require("./models/school");
 
-const MongoStore = require("connect-mongo");
+// const session = require('express-session');
+
+const MongoDBStore = require("connect-mongo");
+
 
 const multer = require("multer");
 
@@ -35,7 +39,9 @@ const { rawListeners } = require("./models/friendship");
 
 const upload = multer({ storage });
 
-const dbUrl = "mongodb://localhost:27017/backery";
+
+// const dbUrl = "mongodb://localhost:27017/backery";
+const dbUrl = process.env.DB_URL || "mongodb://localhost:27017/backery";
 
 mongoose.connect(dbUrl, {
   useNewUrlParser: true,
@@ -43,7 +49,8 @@ mongoose.connect(dbUrl, {
   useFindAndModify: false,
 });
 
-const store = MongoStore.create({
+
+const store = MongoDBStore.create({
   mongoUrl: dbUrl,
   touchAfter: 24 * 60 * 60,
   crypto: {
@@ -55,9 +62,11 @@ store.on("error", function (e) {
   console.log("Error to save to dataBase", e);
 });
 
+const secret = process.env.SECRET || "thisshouldbeabettersecret!";
+
 const sessionConfig = {
   store,
-  secret: "thisshouldbeabettersecret!",
+  secret,
   resave: false,
   saveUninitialized: true,
   cookie: {
@@ -117,6 +126,7 @@ app.get("/newones", requiredLogin,async (req, res) => {
   const school = await Newschool.findOne({ "creator.id": id });
 
  if(school){
+   
   res.send("You have already registered a school");
  } else {
     res.render("newone");  
@@ -133,13 +143,13 @@ app.post("/news", upload.single("image"), async (req, res) => {
   school.district = req.body.district.toLowerCase();
   school.Street = req.body.Street.toLowerCase();
   school.line = req.body.line.toLowerCase();
-  school.image = req.file.path;
   school.creator.username = req.user.username;
   school.creator.name = req.user.name;
   school.creator.id = req.user.id;
  
 
   await school.save();
+ 
   res.redirect("/");
 });
 
@@ -160,10 +170,14 @@ app.get("/news/:id", async (req, res) => {
   //finding the school
   const school = await Newschool.findById(id)
 
+   const schoolCretorId = school.creator.id;
+  const schoolCreatorUser = await User.findById(schoolCretorId);
+  
   // Finding if there is a friendship with this school Id
   const friendships = await Friendship.find({ schoolId: id });
   const userId=friendships.friendRequesterID
   const user = await User.findById(userId);
+ 
 
   // Finding users who sent friendship to
   const uId = friendships.friendrequesterId;
@@ -192,6 +206,7 @@ app.get("/news/:id", async (req, res) => {
     uId,
     allFriendships,
     friendRequesterID,
+    schoolCreatorUser,
   });
 });
 
@@ -209,18 +224,26 @@ app.get("/news/:id/addimage", requiredLogin, async (req, res) => {
   res.render("addimage", { school });
 });
 
-app.delete("/news/:id", async (req, res) => {
-  const { id } = req.params;
-  await Newschool.findByIdAndDelete(id);
-  //  req.flash("mes", "Yes deleted a backery");
-  res.redirect("/");
-});
-
 app.get("/deleteconfirm/:id", async (req, res) => {
   const { id } = req.params;
   const school = await Newschool.findById(id);
   res.render("schoolDelete", { id, school });
 });
+
+app.delete("/deleteschool/:id", async (req, res) => {
+  const { id } = req.params;
+ 
+  //  await Friendship.findAndDelete({ schoolId: id });
+  //  await Friendship.findAndDelete({
+  //    friendshipRequesterSchoolId: id,
+  //  });
+ 
+   await Newschool.findByIdAndDelete(id);
+  //  req.flash("mes", "Yes deleted a backery");
+  res.redirect("/");
+});
+
+
 
 app.get("/schools", requiredLogin, async (req, res) => {
   const currentUserId = req.user.id;
@@ -264,17 +287,21 @@ app.get("/schools", requiredLogin, async (req, res) => {
 
 app.get("/news/:sid/:cuid", async (req, res) => {
   //sid is the Id of this school
-  const sid = await req.params.sid;
+  const sid =  req.params.sid;
   //cuid is the id of current user
-  const cuid = await req.params.cuid;
+  const cuid = req.params.cuid;
   //finding the school
   const school = await Newschool.findById(sid);
 
   const schoolCretorId = school.creator.id;
+  const schoolCreatorUser = await User.findById(schoolCretorId);
+ 
   // Finding if there is a friendship which is sent  to this school
   const recivedFriendship = await Friendship.find({ schoolId: sid });
 
   //finding the user who created this schoolId
+  // const schoolCreatorUser = await User.findById({ "school.creator.id": sid });
+  // res.send(schoolCreatorUser)
   const user = school.creator;
   const schoolCreatorId = user.id;
 
@@ -345,7 +372,6 @@ app.get("/news/:sid/:cuid", async (req, res) => {
   }
  
 
-  console.log(haveYoureceivedFriendRequsestFromThisSchoolNotConfirmed);
 
   res.render("schoolNewDetail", {
     school,
@@ -360,6 +386,7 @@ app.get("/news/:sid/:cuid", async (req, res) => {
     ifYouAreAlreadyFriends,
     haveYoureceivedFriendRequsestFromThisSchool,
     haveYoureceivedFriendRequsestFromThisSchoolNotConfirmed,
+    schoolCreatorUser,
   });
 });
 
@@ -401,15 +428,37 @@ app.get("/", (req, res) => {
   res.render("home");
 });
 
-//CHECK STRING LENGTH
-// const isValidData = (value, stringLength) => {
-//   let inValid = new RegExp("^[_A-z0-9]{1,}$");
-//   let result = inValid.test(value);
-//   if (result && value.length >= stringLength) {
-//     return true;
-//   }
-//   return false;
-// };
+app.get('/userconfirm/:uid/:sid', async (req, res) => {
+  const {uid} = req.params;
+  const {sid} = req.params;
+  
+const confirmRequsteduser = await User.findById(uid);
+
+ const confirmRequstTouser = await User.findById( sid );
+  
+  const confirm = new Confirm()
+  confirm.confirmRequestedToUser.id=sid
+  confirm.confirmRequesterUserId = sid;
+  confirm.confirmRequesterUser.id = uid;
+  confirm.confirmRequestersName = confirmRequsteduser.name
+  confirm.save()
+  
+  
+  res.render("userconfirm1", { confirm, uid, sid, confirmRequstTouser });
+  });
+
+app.post("/userconfirm/:id", async (req, res) => {
+  const { id } =  req.params
+  
+
+  const confirm = await Confirm.findById(id)
+  confirm.text = req.body.text;
+  confirm.save();
+  
+  
+  
+  res.redirect("/");
+});
 
 const isValidData = (str) => {
   var re = /^(?=.*\d)(?=.*[!@#$%^&*])(?=.*[a-z])(?=.*[A-Z]).{6,}$/;
@@ -418,14 +467,14 @@ const isValidData = (str) => {
 
 //REGISTER USER
 app.get("/register", (req, res) => {
-  res.render("registerr");
+  res.render("register");
 });
 
 app.post("/register", async (req, res) => {
   let username = req.body.username;
 
   let name = req.body.name;
-  let role = req.body.role;
+  let schoolPhoneNumber = req.body.schoolPhoneNumber;
   let inputPassword = req.body.password;
  
 
@@ -438,7 +487,7 @@ app.post("/register", async (req, res) => {
   const newUser = new User({
     username,
     name,
-    role,
+    schoolPhoneNumber,
     activated: false,
   });
 
@@ -467,9 +516,9 @@ app.get("/activate/:id", async (req, res) => {
   if (user) {
     user.activated = true;
     await user.save();
-    res.send("Account is activated now");
-    res.redirect("http://localhost:3000/welcomeuser?id=" + req.params.id).end();
-    res.render("loginWelcome");
+    // // res.send("Account is activated now");
+    // res.redirect("http://localhost:3000/welcomeuser?id=" + req.params.id).end();
+    res.render("loginWelcome",{user});
   } else {
     res.send("Activation Failed");
   }
@@ -499,7 +548,19 @@ app.get("/deleteuser/:id", async (req, res) => {
   res.render("deleteAccountconfirmation", { user });
 });
 app.get("/deleteuserconfirm/:id", async (req, res) => {
-  const { id } = await req.params;
+  const { id } =  req.params;
+  const school = await Newschool.findOneAndDelete({ 'creator.id': id })
+ 
+  
+
+
+  const sentFriendship = await Friendship.findAndDelete({
+    friendrequesterid: id,
+  });
+  const receivedFriendship = await Friendship.findAndDelete({
+    userIdWhichReceivedFriendshipRequest: id,
+  });
+  const text = await Text.findAndDelete({ "author.id": id });
   await User.findByIdAndDelete(id);
   res.redirect("/");
 });
@@ -509,7 +570,7 @@ app.get("/login", async (req, res) => {
 });
 
 app.post("/login", async (req, res, next) => {
-  await passport.authenticate("local", (err, user, info) => {
+  await passport.authenticate("local", (err, user) => {
     if (err) {
       return next(err);
     }
@@ -652,10 +713,52 @@ app.get("/users", async (req, res) => {
 app.get("/users/:id", async (req, res) => {
   const { id } = req.params;
   const user = await User.findById(id);
+
   const school = await Newschool.findOne({ "creator.id": id });
+
   const text = await Text.find({ "author.id": id });
+  const confirm = await Confirm.find({ "confirmRequestedToUser.id": id });
+ 
   
-  res.render("showuser", { user, school,text });
+
+   
+
+  res.render("showuser", { user, school, text, confirm });
+});
+  app.get("/finalconfirm/:id/:uid/:cid",async (req, res) => {
+    const { id } = req.params;
+    const { uid } = req.params;
+    const { cid } = req.params;
+    const requesterUser= await User.findById(id)
+    const requestedToUser = await User.findById(uid)
+  const school = await Newschool.findOne({ "creator.id": id });
+    res.render('finalconfirm',{requesterUser,requestedToUser,school,cid})
+  });
+
+app.post('/finalconfirm/:id/:cid', async (req, res) => {
+  const { id } = req.params;
+  const { cid } = req.params;
+  const confirm = await Confirm.findById(cid)
+
+  confirm.confirmation = req.body.confirmation;
+   
+  const user = await User.findById(id);
+ 
+  user.confirmation = req.body.confirmation
+  confirm.save()
+  user.save()
+  res.redirect('/')
+  })
+
+app.put("/userconfirm/:id", async (req, res) => {
+  const { id } = req.params;
+  const confirmation = req.body.confirmation
+  
+
+  const confirm = await Confirm.findById( id);
+  confirm.confirmation = confirmation
+ confirm.save()
+ res.redirect('/' )
 });
 
 app.get("/requestfriendship/:id", requiredLogin, async (req, res) => {

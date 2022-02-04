@@ -11,11 +11,25 @@ let userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
- 
+
   activated: {
-    type: Boolean
+    type: Boolean,
   },
- 
+
+  schoolPhoneNumber: {
+    type: Number,
+  },
+  confirmation: {
+    type: String,
+    default: "Waiting for confirmation",
+  },
+  confirm: {
+    id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Confirm",
+    },
+    id: String,
+  },
 });
 
 userSchema.plugin(passportLocalMongoose);

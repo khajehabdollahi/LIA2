@@ -1,7 +1,11 @@
 <% layout('layout/boilerplate') %>
 <div class="container">
   <div class="row mt-3">
+    
     <div class="col-lg-6">
+          <% if(currentUser.confirmation!="Yes" &&currentUser.id!=school.creator.id && schoolCreatorUser.confirmation!="Yes") {%> 
+      <a href="http:/userconfirm/<%=currentUser.id  %>/<%= school.creator.id%>  "> <h2 style="color:#ff0000"> Request confirmation to this school</h2></a>
+     <% } %> 
       <ul class="list-group">
         <li class="list-group-item py-1"> 
           <div class="row">
@@ -184,10 +188,13 @@
       <div class="school-image border rounded">
         <img class="rounded" src=<%=school.image %> alt="School Image" width="100%"> 
 
-        <% if(school.creator.username){ %> 
-        <% if(currentUser && currentUser.username ==school.creator.username ) { %> 
-     
-        <% if(school.image!== "") {%> 
+        
+        <% if(currentUser && currentUser.id ==school.creator.id && currentUser.confirmation=="Yes") { %> 
+
+          <% if(!school.image) {%> 
+               <a href="http:/news/<%=school.id %>/addimage " style="color: green;  text-align:center">Add image</a>
+
+        <%} else if(school.image || school.image!== "") {%> 
         <form action="/schoolimagedelete/<%=school._id %>?_method=PUT " method="POST"  >
           <input type="text" name="image" id="image" value="<%=school.image %>" style="display:none" > <br/>
           <button class="btn btn-danger" type="submit">Delete image</button>
@@ -195,9 +202,12 @@
         <% } else {%>
           <a href="http:/news/<%=school.id %>/addimage " style="color: green;  text-align:center">Add image</a>
      
-        <% } %> 
+      
         <% } %> 
       <% } %> 
+    </div>
+    <div>
+  
     </div>
   </div>
 </div>
